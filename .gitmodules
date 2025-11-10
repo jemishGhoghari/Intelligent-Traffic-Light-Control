@@ -1,0 +1,3 @@
+[submodule "simulation/sumo_ingolstadt"]
+	path = simulation/sumo_ingolstadt
+	url = https://github.com/TUM-VT/sumo_ingolstadt.git
