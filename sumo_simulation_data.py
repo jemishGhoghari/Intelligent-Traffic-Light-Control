@@ -84,4 +84,44 @@ class SumoSimulationData:
         old_state = -1
         old_action = -1
 
-        # while self._step < self._max_steps:
+        while self._step < self._max_steps:
+            # current_state = self.
+            traci.simulationStep()
+            self._get_state()
+            self._step += 1
+
+    def _get_state(self):
+        state = np.zeros(self._num_states)
+        car_list = traci.vehicle.getIDList()
+
+        # for car_id in car_list:
+        lane_pos = traci.vehicle.getLanePosition(car_list[0])
+        lane_id = traci.vehicle.getLaneID(car_list[0])
+
+        print(f"Car ID: {car_list[0]}, Lane ID: {lane_id}, Lane Position: {lane_pos}")
+
+
+if __name__ == "__main__":
+    # Example usage
+    sumoBinary = "sumo"  # or "sumo-gui" for graphical version
+    sumoConfig = "./sumo_ingolstadt/simulation/24h_sim.sumocfg"
+    sumoCmd = [sumoBinary, "-c", sumoConfig]
+
+    simulation = SumoSimulationData(
+        Model=None,
+        Memory=None,
+        sumoCmd=sumoCmd,
+        gamma=0.9,
+        max_steps=1000,
+        green_duration=30,
+        yellow_duration=5,
+        num_states=10,
+        num_actions=4,
+        training_epochs=10,
+    )
+
+    try:
+        simulation.run_simulation(episode=1, epsilon=0.1)
+    except KeyboardInterrupt:
+        traci.close()
+        sys.exit()
