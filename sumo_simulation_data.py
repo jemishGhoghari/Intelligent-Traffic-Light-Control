@@ -1,10 +1,19 @@
 import os
 import sys
 
+
 if "SUMO_HOME" in os.environ:
     sys.path.append(os.path.join(os.environ["SUMO_HOME"], "tools"))
 
-import libsumo as traci
+print(sys.platform)
+
+if sys.platform == "linux":
+    import libsumo as traci
+elif sys.platform == "win32":
+    import traci
+else:
+    print("OS not supported!")
+
 import numpy as np
 import random
 import timeit
