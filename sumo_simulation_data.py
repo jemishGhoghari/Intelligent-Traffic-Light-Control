@@ -25,9 +25,7 @@ sumoCmd = [sumoBinary, "-c", sumoConfig]
 
 def main():
     traci.start(sumoCmd)
-
     step = 0
-
     try:
         while True:  # Run for 1000 simulation steps
             traci.simulationStep()
