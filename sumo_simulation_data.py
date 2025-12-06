@@ -12,7 +12,7 @@ if sys.platform == "linux":
 elif sys.platform == "win32":
     import traci
 else:
-    print("OS not supported!")
+    import libsumo
 
 import numpy as np
 import random
