@@ -31,9 +31,9 @@ class SUMOSimulation:
         delta_time: int = 5,
         max_green: int = 60,
         min_green: int = 5,
-        yellow_time: int = 3,
         reward_type: str = "combined",
         max_steps: int = 3600,
+        end_on_no_vehicles: bool = True,
     ):
         self.delta_time = delta_time
         self.tls_id = tls_id
@@ -43,7 +43,7 @@ class SUMOSimulation:
         self.sumo_config = sumo_config
         self.use_gui = use_gui
         self.max_steps = max_steps
-        self.yellow_time = yellow_time
+        self.end_on_no_vehicles = end_on_no_vehicles
 
         self.current_step = 0
         self.time_since_last_phase_change = 0
@@ -73,7 +73,7 @@ class SUMOSimulation:
 
         # Get total queue length at the stopline of specific lane
         queue_length = self._get_queue_length_near_stopline(
-            lane_id, distance_from_stop=50
+            lane_id, distance_from_stop=40
         )
 
         # Calculate Vehicle Waiting times and Number of Vehicles.
@@ -260,7 +260,7 @@ class SUMOSimulation:
 
         for lane in lanes:
             total_waiting_time += traci.lane.getWaitingTime(lane)
-            total_queue_length += self._get_queue_length_near_stopline(lane, 60)
+            total_queue_length += self._get_queue_length_near_stopline(lane, 40)
             num_veh = traci.lane.getLastStepVehicleNumber(lane)
             total_vehicles += num_veh
 
@@ -323,7 +323,18 @@ class SUMOSimulation:
             if not self.sumo_running:
                 self._start_sumo()
             else:
-                traci.load(["-c", self.sumo_config])
+                traci.load(
+                    [
+                        "-c",
+                        self.sumo_config,
+                        "--waiting-time-memory",
+                        "1000",
+                        "--no-warnings",
+                        "--no-step-log",
+                        "--verbose",
+                        "false",
+                    ]
+                )
 
         # Reset internal state
         self.current_step = 0
@@ -362,7 +373,7 @@ class SUMOSimulation:
 
         for _ in range(self.delta_time):
             traci.simulationStep()
-            self.current_step += 1
+        self.current_step += 1
 
         self.time_since_last_phase_change += self.delta_time
 
@@ -375,10 +386,12 @@ class SUMOSimulation:
 
         info = {
             "step": self.current_step,
+            "time": traci.simulation.getTime(),
             "cumulative_reward": self.cumulative_reward,
             "cumulative_waiting_time": self.cumulative_waiting_time,
             "total_phase_switches": self.total_phase_switches,
             "current_phase_duration": self.time_since_last_phase_change,
+            "current_phase": traci.trafficlight.getPhase(self.tls_id),
         }
 
         return state, reward, done, info
@@ -391,11 +404,13 @@ class SUMOSimulation:
             True if episode should end
         """
         if self.current_step >= self.max_steps:
+            print("Max steps reached, ending episode.")
             return True
 
-        min_expected_vehicles = traci.simulation.getMinExpectedNumber()
-        if min_expected_vehicles <= 0:
-            return True
+        if self.end_on_no_vehicles:
+            min_expected_vehicles = traci.simulation.getMinExpectedNumber()
+            if min_expected_vehicles <= 0:
+                return True
 
         return False
 
@@ -411,11 +426,13 @@ def main():
     sumoConfig = "./sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
     env = SUMOSimulation(
         tls_id=tls_id,
-        use_gui=False,
+        use_gui=True,
         max_steps=3600,
         sumo_config=sumoConfig,
         min_green=10,
         max_green=60,
+        end_on_no_vehicles=True,
+        delta_time=10,
     )
 
     print(f"Action space size: {env.action_space_n} (0=Continue, 1=Switch)")
@@ -454,17 +471,6 @@ def main():
         print(f"Total Phase Switches = {info['total_phase_switches']}")
 
     env.close()
-
-    # try:
-    #     while True:  # Run for 1000 simulation steps
-    #         traci.simulationStep()
-
-    #         state = env._get_state()
-    #         # print(state)
-    #         step += 1
-    # except KeyboardInterrupt:
-    #     traci.close()
-    #     sys.exit()
 
 
 if __name__ == "__main__":
