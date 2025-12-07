@@ -8,8 +8,6 @@ import sys
 if "SUMO_HOME" in os.environ:
     sys.path.append(os.path.join(os.environ["SUMO_HOME"], "tools"))
 
-print(sys.platform)
-
 if sys.platform == "linux":
     import libsumo as traci
 elif sys.platform == "win32":
@@ -19,12 +17,14 @@ else:
 
 
 sumoBinary = "sumo-gui"  # or "sumo-gui" for graphical version
-sumoConfig = "./sumo_ingolstadt/simulation/24h_sim.sumocfg"
+sumoConfig = "./sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
 sumoCmd = [sumoBinary, "-c", sumoConfig]
 
 
 class SUMOSimulation:
-    def __init__(self):
+    def __init__(
+        self, tls_id: str, delta_time: int = 5, max_green: int = 60, min_green: int = 5
+    ):
         self.queue_length = 0
         self.waiting_time = 0
         self.num_vehicles = 0
@@ -33,6 +33,17 @@ class SUMOSimulation:
         self.t_actual = 0
         self.t_expected = 0
         self.delay = 0
+
+        self.delta_time = delta_time
+        self.tls_id = tls_id
+        self.max_green = max_green
+        self.min_green = min_green
+
+        self.current_phase_duration = 0
+        self.time_since_last_phase_change = 0
+        self.total_phase_switches = 0
+
+        self.num_phases = self._get_num_phases(self.tls_id)
 
     def _get_lane_features(self, lane_id: int):
         """
@@ -106,32 +117,30 @@ class SUMOSimulation:
             traci.trafficlight.getCompleteRedYellowGreenDefinition(tls_id)[0].phases
         )
 
-    def _get_state(self, tls_id: str):
-        """Extract State of the Intersection including Lane features and Phase features
-
-        Args:
-            tls_id (string): Tls ID of the specific Intersection
+    def _get_state(self):
+        """
+        Extract State of the Intersection including Lane features and Phase features
         """
 
         # Extract lane features
-        lanes = sorted(set(traci.trafficlight.getControlledLanes(tls_id)))
+        lanes = sorted(set(traci.trafficlight.getControlledLanes(self.tls_id)))
         lane_features = [self._get_lane_features(l) for l in lanes]
         lane_features = np.concatenate(
-            lane_features, axis=0
-        )  # shape = 5 * n_lanes (n_lanes = 22 for Ingolstadt Saturn Arena Intersection)
+            lane_features
+        )  # shape = 5 * n_lanes (n_lanes = 30 for Ingolstadt Saturn Arena Intersection including Bicycle lanes)
 
         # Extract phase features
-        num_phases = self._get_num_phases(tls_id)
+        num_phases = self._get_num_phases(self.tls_id)
 
-        phase_idx = traci.trafficlight.getPhase(tls_id)
+        phase_idx = traci.trafficlight.getPhase(self.tls_id)
         phase_one_hot = np.zeros(num_phases, dtype=float)
         phase_one_hot[phase_idx] = 1.0
 
-        phase_total = traci.trafficlight.getPhaseDuration(tls_id)
-        phase_spent = traci.trafficlight.getSpentDuration(tls_id)
+        phase_total = traci.trafficlight.getPhaseDuration(self.tls_id)
+        phase_spent = traci.trafficlight.getSpentDuration(self.tls_id)
         sim_time = traci.simulation.getTime()
         phase_remain = max(
-            0.0, traci.trafficlight.getNextSwitch(tls_id)
+            0.0, traci.trafficlight.getNextSwitch(self.tls_id) - sim_time
         )  # get exact time at which transition is scheduled
 
         # Normalize times to something [0, 1] to Help Neural Network
@@ -149,24 +158,55 @@ class SUMOSimulation:
         state = np.concatenate([lane_features, phase_features])
         return state
 
+    def _apply_action(self, action: int):
+        """
+        Apply the continue/switch action to the traffic light.
+
+        Action formulation:
+            - action 0: continue current phase
+            - action 1: switch to next phase
+
+        Args:
+            action (int): 0 (continue) or 1 (switch)
+        """
+        self.current_phase_duration += self.delta_time
+
+        if action == 0:
+            if self.current_phase_duration < self.max_green:
+                pass
+            else:
+                self._switch_to_next_phase()
+        elif action == 1:
+            if self.current_phase_duration >= self.min_green:
+                self._switch_to_next_phase()
+
+    def _switch_to_next_phase(self):
+        """
+        Switch to the next phase in the traffic light cycle
+        """
+        current_phase = traci.trafficlight.getPhase(self.tls_id)
+
+        next_phase = (current_phase + 1) % self.num_phases
+
+        traci.trafficlight.setPhase(self.tls_id, next_phase)
+
+        self.current_phase_duration = 0
+        self.time_since_last_phase_change = 0
+        self.total_phase_switches = 0
 
 def main():
     traci.start(sumoCmd)
     step = 0
 
-    env = SUMOSimulation()
-
     tls_id = "7628244053"
+    env = SUMOSimulation(tls_id)
 
     try:
         while True:  # Run for 1000 simulation steps
             traci.simulationStep()
 
-            state = env._get_state(tls_id)
-            print(
-                # f"Step {step}: Number of vehicles in the simulation: {len(vehicle_ids)}"
-                state
-            )
+            state = env._get_state()
+            # print(state)
             step += 1
     except KeyboardInterrupt:
         traci.close()
