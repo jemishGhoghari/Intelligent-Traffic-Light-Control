@@ -46,7 +46,6 @@ class SUMOSimulation:
         self.yellow_time = yellow_time
 
         self.current_step = 0
-        self.is_yellow = False
         self.time_since_last_phase_change = 0
         self.current_phase_duration = 0
 
@@ -187,15 +186,13 @@ class SUMOSimulation:
         Args:
             action (int): 0 (continue) or 1 (switch)
         """
-        self.current_phase_duration += self.delta_time
-
         if action == 0:
-            if self.current_phase_duration < self.max_green:
+            if self.time_since_last_phase_change < self.max_green:
                 pass
             else:
                 self._switch_to_next_phase()
         elif action == 1:
-            if self.current_phase_duration >= self.min_green:
+            if self.time_since_last_phase_change >= self.min_green:
                 self._switch_to_next_phase()
 
     def _switch_to_next_phase(self):
@@ -208,9 +205,8 @@ class SUMOSimulation:
 
         traci.trafficlight.setPhase(self.tls_id, next_phase)
 
-        self.current_phase_duration = 0
         self.time_since_last_phase_change = 0
-        self.total_phase_switches = 0
+        self.total_phase_switches += 1
 
     def _compute_reward(self) -> float:
         """
@@ -295,13 +291,17 @@ class SUMOSimulation:
         if self.sumo_running:
             traci.close()
 
-        sumo_binary = "sumo_gui" if self.use_gui else "sumo"
+        sumo_binary = "sumo-gui" if self.use_gui else "sumo"
         sumo_cmd = [
             sumo_binary,
             "-c",
             self.sumo_config,
             "--waiting-time-memory",
             "1000",
+            "--no-warnings",
+            "--no-step-log",
+            "--verbose",
+            "false",
         ]
 
         traci.start(sumo_cmd)
@@ -323,11 +323,10 @@ class SUMOSimulation:
             if not self.sumo_running:
                 self._start_sumo()
             else:
-                traci.load(["-c", self.sumo_config, "--waiting-time-memory", "1000"])
+                traci.load(["-c", self.sumo_config])
 
         # Reset internal state
         self.current_step = 0
-        self.is_yellow = False
         self.time_since_last_phase_change = 0
         self.current_phase_duration = 0
         self.total_phase_switches = 0
@@ -365,6 +364,8 @@ class SUMOSimulation:
             traci.simulationStep()
             self.current_step += 1
 
+        self.time_since_last_phase_change += self.delta_time
+
         state = self._get_state()
 
         reward = self._compute_reward()
@@ -377,7 +378,7 @@ class SUMOSimulation:
             "cumulative_reward": self.cumulative_reward,
             "cumulative_waiting_time": self.cumulative_waiting_time,
             "total_phase_switches": self.total_phase_switches,
-            "current_phase_duration": self.current_phase_duration,
+            "current_phase_duration": self.time_since_last_phase_change,
         }
 
         return state, reward, done, info
@@ -409,7 +410,12 @@ def main():
     tls_id = "7628244053"
     sumoConfig = "./sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
     env = SUMOSimulation(
-        tls_id=tls_id, use_gui=True, max_steps=3600, sumo_config=sumoConfig
+        tls_id=tls_id,
+        use_gui=False,
+        max_steps=3600,
+        sumo_config=sumoConfig,
+        min_green=10,
+        max_green=60,
     )
 
     print(f"Action space size: {env.action_space_n} (0=Continue, 1=Switch)")
