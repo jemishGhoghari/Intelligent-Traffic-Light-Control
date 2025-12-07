@@ -23,7 +23,12 @@ sumoCmd = [sumoBinary, "-c", sumoConfig]
 
 class SUMOSimulation:
     def __init__(
-        self, tls_id: str, delta_time: int = 5, max_green: int = 60, min_green: int = 5
+        self,
+        tls_id: str,
+        delta_time: int = 5,
+        max_green: int = 60,
+        min_green: int = 5,
+        reward_type: str = "combined",
     ):
         self.queue_length = 0
         self.waiting_time = 0
@@ -38,10 +43,12 @@ class SUMOSimulation:
         self.tls_id = tls_id
         self.max_green = max_green
         self.min_green = min_green
+        self.reward_type = reward_type
 
         self.current_phase_duration = 0
         self.time_since_last_phase_change = 0
         self.total_phase_switches = 0
+        self.cumulative_waiting_time = 0
 
         self.num_phases = self._get_num_phases(self.tls_id)
 
@@ -193,6 +200,83 @@ class SUMOSimulation:
         self.current_phase_duration = 0
         self.time_since_last_phase_change = 0
         self.total_phase_switches = 0
+
+    def _compute_reward(self) -> float:
+        """
+        Calculate reward based on traffic matrics
+
+        Returns:
+            float: reward value
+        """
+        metrics = self._calculate_metrics()
+
+        if self.reward_type == "waiting_time":
+            reward = -metrics["total_waiting_time"]
+        elif self.reward_type == "queue":
+            reward = -metrics["total_queue_length"]
+        elif self.reward_type == "comboned":
+            reward = -metrics["total_delay"]
+        elif self.reward_type == "combined":
+            # weighted sum of all (We need to tune the weights)
+            w_wait = 0.4
+            w_queue = 0.3
+            w_delay = 0.2
+            w_speed = 0.1
+
+            reward = (
+                -w_wait * metrics["total_waiting_time"]
+                - w_queue * metrics["total_queue_length"]
+                - w_delay * metrics["total_delay"]
+                + w_speed * metrics["avg_speed"] * metrics["total_vehicles"]
+            )
+        else:
+            raise ValueError(f"Unknown reward type: {self.reward_type}")
+
+        self.cumulative_waiting_time += metrics["total_waiting_time"]
+
+        return reward
+
+    def _calculate_metrics(self) -> dict[str, float]:
+        """
+        Calculate traffic metrics for reward calculation
+
+        Returns:
+            Dictionary containing traffic metrics
+        """
+        lanes = sorted(set(traci.trafficlight.getControlledLanes(self.tls_id)))
+
+        total_waiting_time = 0
+        total_queue_length = 0
+        total_delay = 0
+        total_vehicles = 0
+        total_speed = 0
+
+        for lane in lanes:
+            total_waiting_time += traci.lane.getWaitingTime(lane)
+            total_queue_length += self._get_queue_length_near_stopline(lane, 60)
+            num_veh = traci.lane.getLastStepVehicleNumber(lane)
+            total_vehicles += num_veh
+
+            if num_veh > 0:
+                total_speed += traci.lane.getLastStepMeanSpeed(lane) * num_veh
+
+            edge_id = traci.lane.getEdgeID(lane)
+            t_actual = traci.edge.getTraveltime(edge_id)
+            lane_length = traci.lane.getLength(lane)
+            v_max = traci.lane.getMaxSpeed(lane)
+            t_expected = lane_length / v_max if v_max > 0 else 0.0
+            total_delay += max(0.0, t_actual - t_expected) * num_veh
+
+        avg_speed = total_speed / total_vehicles if total_vehicles > 0 else 0.0
+
+        return {
+            "total_waiting_time": total_waiting_time,
+            "total_queue_length": total_queue_length,
+            "total_delay": total_delay,
+            "avg_speed": avg_speed,
+            "total_vehicles": total_vehicles,
+        }
+
 
 def main():
     traci.start(sumoCmd)
