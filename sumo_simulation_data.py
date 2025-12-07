@@ -16,39 +16,50 @@ else:
     import libsumo
 
 
-sumoBinary = "sumo-gui"  # or "sumo-gui" for graphical version
-sumoConfig = "./sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
-sumoCmd = [sumoBinary, "-c", sumoConfig]
+# sumoBinary = "sumo-gui"  # or "sumo-gui" for graphical version
+# sumoConfig = "./sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
+# sumoCmd = [sumoBinary, "-c", sumoConfig]
 
 
 class SUMOSimulation:
+
     def __init__(
         self,
         tls_id: str,
+        sumo_config,
+        use_gui: bool = True,
         delta_time: int = 5,
         max_green: int = 60,
         min_green: int = 5,
+        yellow_time: int = 3,
         reward_type: str = "combined",
+        max_steps: int = 3600,
     ):
-        self.queue_length = 0
-        self.waiting_time = 0
-        self.num_vehicles = 0
-        self.mean_speed = 0
-        self.edge_id = 0
-        self.t_actual = 0
-        self.t_expected = 0
-        self.delay = 0
-
         self.delta_time = delta_time
         self.tls_id = tls_id
         self.max_green = max_green
         self.min_green = min_green
         self.reward_type = reward_type
+        self.sumo_config = sumo_config
+        self.use_gui = use_gui
+        self.max_steps = max_steps
+        self.yellow_time = yellow_time
 
-        self.current_phase_duration = 0
+        self.current_step = 0
+        self.is_yellow = False
         self.time_since_last_phase_change = 0
+        self.current_phase_duration = 0
+
         self.total_phase_switches = 0
         self.cumulative_waiting_time = 0
+        self.cumulative_reward = 0
+
+        self.sumo_running = False
+        self._start_sumo()
+
+        # Action space
+        self.action_space_n = 2
+        self.observation_space_n = None
 
         self.num_phases = self._get_num_phases(self.tls_id)
 
@@ -62,30 +73,30 @@ class SUMOSimulation:
         """
 
         # Get total queue length at the stopline of specific lane
-        self.queue_length = self._get_queue_length_near_stopline(
+        queue_length = self._get_queue_length_near_stopline(
             lane_id, distance_from_stop=50
         )
 
         # Calculate Vehicle Waiting times and Number of Vehicles.
-        self.waiting_time = traci.lane.getWaitingTime(lane_id)
-        self.num_vehicles = traci.lane.getLastStepVehicleNumber(lane_id)
-        self.mean_speed = traci.lane.getLastStepMeanSpeed(lane_id)
+        waiting_time = traci.lane.getWaitingTime(lane_id)
+        num_vehicles = traci.lane.getLastStepVehicleNumber(lane_id)
+        mean_speed = traci.lane.getLastStepMeanSpeed(lane_id)
 
         # Delay: Calculate the delay -> realistic travel time - expected travel time
-        self.edge_id = traci.lane.getEdgeID(lane_id)
-        self.t_actual = traci.edge.getTraveltime(self.edge_id)
+        edge_id = traci.lane.getEdgeID(lane_id)
+        t_actual = traci.edge.getTraveltime(edge_id)
         lane_length = traci.lane.getLength(lane_id)
         v_max = traci.lane.getMaxSpeed(lane_id)
-        self.t_expected = lane_length / v_max if v_max > 0 else 0.0
-        self.delay = max(0.0, self.t_actual - self.t_expected)  # [s]
+        t_expected = lane_length / v_max if v_max > 0 else 0.0
+        delay = max(0.0, t_actual - t_expected)  # [s]
 
         return np.array(
             [
-                self.queue_length,
-                self.waiting_time,
-                self.num_vehicles,
-                self.mean_speed,
-                self.delay,
+                queue_length,
+                waiting_time,
+                num_vehicles,
+                mean_speed,
+                delay,
             ],
             dtype=float,
         )
@@ -277,24 +288,177 @@ class SUMOSimulation:
             "total_vehicles": total_vehicles,
         }
 
+    def _start_sumo(self):
+        """
+        Start SUMO simulation
+        """
+        if self.sumo_running:
+            traci.close()
 
-def main():
-    traci.start(sumoCmd)
-    step = 0
+        sumo_binary = "sumo_gui" if self.use_gui else "sumo"
+        sumo_cmd = [
+            sumo_binary,
+            "-c",
+            self.sumo_config,
+            "--waiting-time-memory",
+            "1000",
+        ]
 
-    tls_id = "7628244053"
-    env = SUMOSimulation(tls_id)
+        traci.start(sumo_cmd)
+        self.sumo_running = True
 
-    try:
-        while True:  # Run for 1000 simulation steps
+    def reset(self, force_restart: bool = False) -> np.ndarray:
+        """
+        Reset environment to initial state
+
+        Returns:
+            Initial observation (state)
+        """
+
+        if force_restart:
+            if self.sumo_running:
+                traci.close()
+            self._start_sumo()
+        else:
+            if not self.sumo_running:
+                self._start_sumo()
+            else:
+                traci.load(["-c", self.sumo_config, "--waiting-time-memory", "1000"])
+
+        # Reset internal state
+        self.current_step = 0
+        self.is_yellow = False
+        self.time_since_last_phase_change = 0
+        self.current_phase_duration = 0
+        self.total_phase_switches = 0
+
+        self.cumulative_waiting_time = 0
+        self.cumulative_reward = 0
+
+        for _ in range(5):
             traci.simulationStep()
 
-            state = env._get_state()
-            # print(state)
+        # Get initial state
+        state = self._get_state()
+
+        if self.observation_space_n is None:
+            self.observation_space_n = len(state)
+
+        return state
+
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, dict]:
+        """
+        Execute one time step within the environment
+
+        Args:
+            action (int): Action to take (phase index)
+
+        Returns:
+            observation: current state
+            reward: Reward for the action
+            done: Whether episode is finished
+            info: Aditional information
+        """
+        self._apply_action(action)
+
+        for _ in range(self.delta_time):
+            traci.simulationStep()
+            self.current_step += 1
+
+        state = self._get_state()
+
+        reward = self._compute_reward()
+        self.cumulative_reward += reward
+
+        done = self._is_done()
+
+        info = {
+            "step": self.current_step,
+            "cumulative_reward": self.cumulative_reward,
+            "cumulative_waiting_time": self.cumulative_waiting_time,
+            "total_phase_switches": self.total_phase_switches,
+            "current_phase_duration": self.current_phase_duration,
+        }
+
+        return state, reward, done, info
+
+    def _is_done(self):
+        """
+        Check if episode is finished
+
+        Returns:
+            True if episode should end
+        """
+        if self.current_step >= self.max_steps:
+            return True
+
+        min_expected_vehicles = traci.simulation.getMinExpectedNumber()
+        if min_expected_vehicles <= 0:
+            return True
+
+        return False
+
+    def close(self):
+        """Close the environment and SUMO."""
+        if self.sumo_running:
+            traci.close()
+            self.sumo_running = False
+
+
+def main():
+    tls_id = "7628244053"
+    sumoConfig = "./sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
+    env = SUMOSimulation(
+        tls_id=tls_id, use_gui=True, max_steps=3600, sumo_config=sumoConfig
+    )
+
+    print(f"Action space size: {env.action_space_n} (0=Continue, 1=Switch)")
+    print(f"Observation space size: {env.observation_space_n}")
+    print(f"Number of traffic light phases: {env.num_phases}")
+
+    num_episodes = 5
+
+    for episode in range(num_episodes):
+        state = env.reset()
+        done = False
+        episode_reward = 0
+        step = 0
+
+        print(f"\n=== Episode {episode + 1} ===")
+
+        while not done:
+            action = random.randint(0, 1)
+
+            next_state, reward, done, info = env.step(action)
+
+            episode_reward += reward
             step += 1
-    except KeyboardInterrupt:
-        traci.close()
-        sys.exit()
+
+            if step % 100 == 0:
+                action_str = "CONTINUE" if action == 0 else "SWITCH"
+                print(
+                    f"Step {step}: Action={action_str}, Reward={reward:.2f}, "
+                    f"Cumulative={episode_reward:.2f}, Switches={info['total_phase_switches']}"
+                )
+
+            state = next_state
+
+        print(f"Episode {episode + 1} finished: Total Reward = {episode_reward:.2f}")
+        print(f"Total Waiting Time = {info['cumulative_waiting_time']:.2f}s")
+        print(f"Total Phase Switches = {info['total_phase_switches']}")
+
+    env.close()
+
+    # try:
+    #     while True:  # Run for 1000 simulation steps
+    #         traci.simulationStep()
+
+    #         state = env._get_state()
+    #         # print(state)
+    #         step += 1
+    # except KeyboardInterrupt:
+    #     traci.close()
+    #     sys.exit()
 
 
 if __name__ == "__main__":
