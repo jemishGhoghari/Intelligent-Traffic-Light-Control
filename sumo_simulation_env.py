@@ -15,12 +15,6 @@ elif sys.platform == "win32":
 else:
     import libsumo
 
-
-# sumoBinary = "sumo-gui"  # or "sumo-gui" for graphical version
-# sumoConfig = "./sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
-# sumoCmd = [sumoBinary, "-c", sumoConfig]
-
-
 class SUMOSimulation:
 
     def __init__(
