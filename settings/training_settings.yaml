@@ -1,0 +1,23 @@
+# SUMO Sim parameters
+tls_id: "7628244053" # ID of the intersection to control
+sumo_config: "sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg" # Path to the SUMO configuration file
+use_gui: false # Whether to use the SUMO GUI for visualization
+delta_time: 5
+max_green: 60
+min_green: 10
+reward_type: "combined"
+max_steps: 3600
+end_on_no_vehicles: true
+
+# Replay memory buffer parameters
+capacity: 10000
+
+# Agent parameters
+total_episodes: 3 # Total number of training episodes
+batch_size: 128 # Number of experiences to sample during training
+gamma: 0.99 # Discount factor for future rewards
+eps_start: 0.9 # Starting value of epsilon for epsilon-greedy action selection
+eps_end: 0.01 # Final value of epsilon after decay
+eps_decay: 2500 # Number of episodes over which epsilon decays
+tau: 0.005 # Soft update parameter for target network
+lr: 3e-4 # Learning rate for the optimizer
