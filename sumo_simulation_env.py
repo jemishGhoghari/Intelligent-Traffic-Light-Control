@@ -15,6 +15,7 @@ elif sys.platform == "win32":
 else:
     import libsumo
 
+
 class SUMOSimulation:
 
     def __init__(
@@ -317,18 +318,20 @@ class SUMOSimulation:
             if not self.sumo_running:
                 self._start_sumo()
             else:
-                traci.load(
-                    [
-                        "-c",
-                        self.sumo_config,
-                        "--waiting-time-memory",
-                        "1000",
-                        "--no-warnings",
-                        "--no-step-log",
-                        "--verbose",
-                        "false",
-                    ]
-                )
+                sumo_binary = "sumo-gui" if self.use_gui else "sumo"
+                sumo_cmd = [
+                    sumo_binary,
+                    "-c",
+                    self.sumo_config,
+                    "--waiting-time-memory",
+                    "1000",
+                    "--no-warnings",
+                    "--no-step-log",
+                    "--verbose",
+                    "false",
+                ]
+                traci.start(sumo_cmd)
+                self.sumo_running = True
 
         # Reset internal state
         self.current_step = 0
