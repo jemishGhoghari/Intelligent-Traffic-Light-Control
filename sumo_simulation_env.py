@@ -337,7 +337,7 @@ class SUMOSimulation:
         self.cumulative_waiting_time = metrics["total_waiting_time"]
 
         # Clip reward to reasonable range
-        reward = np.clip(reward, -5.0, 5.0)
+        reward = np.clip(reward, -10.0, 10.0)
 
         return reward
 
@@ -495,6 +495,8 @@ class SUMOSimulation:
         self.cumulative_reward += reward
         done = self._is_done()
 
+        current_metrics = self._calculate_metrics()
+
         info = {
             "step": self.current_step,
             "time": traci.simulation.getTime(),
@@ -504,6 +506,10 @@ class SUMOSimulation:
             "current_phase_duration": self.time_since_last_phase_change,
             "current_phase": traci.trafficlight.getPhase(self.tls_id),
             "in_yellow": self.in_yellow_phase,
+            "current_queue_length": current_metrics["total_queue_length"],
+            "current_waiting_time": current_metrics["total_waiting_time"],
+            "current_vehicles": current_metrics["total_vehicles"],
+            "avg_speed": current_metrics["avg_speed"],
         }
 
         return state, reward, done, info
