@@ -403,6 +403,7 @@ class SUMOSimulation:
             "false",
             "--scale",
             "5.0",
+            "--random",
         ]
 
         traci.start(sumo_cmd)
@@ -435,6 +436,7 @@ class SUMOSimulation:
                     "false",
                     "--scale",
                     "5.0",
+                    "--random",
                 ]
             )
 

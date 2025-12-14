@@ -7,14 +7,14 @@ max_green: 60 # Maximum green duration
 min_green: 10 # Minimum green duration
 yellow_time: 3 # Yellow phase duration
 reward_type: "queue"
-max_steps: 1000
+max_steps: 1000 # 24 hours in seconds
 end_on_no_vehicles: true
 
 # Replay memory buffer
 capacity: 100000
 
 # Training episodes
-total_episodes: 300
+total_episodes: 200
 
 # DQN hyperparameters
 batch_size: 128
