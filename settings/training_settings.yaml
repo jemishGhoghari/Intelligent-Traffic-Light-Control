@@ -13,7 +13,7 @@ end_on_no_vehicles: true
 capacity: 10000
 
 # Agent parameters
-total_episodes: 3 # Total number of training episodes
+total_episodes: 10 # Total number of training episodes
 batch_size: 128 # Number of experiences to sample during training
 gamma: 0.99 # Discount factor for future rewards
 eps_start: 0.9 # Starting value of epsilon for epsilon-greedy action selection
