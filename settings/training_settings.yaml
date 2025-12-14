@@ -1,23 +1,37 @@
 # SUMO Sim parameters
-tls_id: "7628244053" # ID of the intersection to control
-sumo_config: "sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg" # Path to the SUMO configuration file
-use_gui: false # Whether to use the SUMO GUI for visualization
-delta_time: 5
-max_green: 60
-min_green: 10
-reward_type: "combined"
-max_steps: 6000
-end_on_no_vehicles: false
+tls_id: "7628244053"
+sumo_config: "sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
+use_gui: false
+delta_time: 5  # Simulation step size
+max_green: 60  # Maximum green duration (HARD CONSTRAINT)
+min_green: 10  # Minimum green duration (CRITICAL: increased from 5 to 10)
+yellow_time: 3  # Yellow phase duration
+reward_type: "combined"  # CHANGED: Use combined for better learning signals
+max_steps: 1000
+end_on_no_vehicles: true
 
-# Replay memory buffer parameters
-capacity: 200000
+# Replay memory buffer
+capacity: 100000  # REDUCED: Don't need 200k for this problem
 
-# Agent parameters
-total_episodes: 200 # Total number of training episodes
-batch_size: 64 # Number of experiences to sample during training
-gamma: 0.99 # Discount factor for future rewards
-eps_start: 0.9 # Starting value of epsilon for epsilon-greedy action selection
-eps_end: 0.01 # Final value of epsilon after decay
-eps_decay: 25 # Number of episodes over which epsilon decays
-tau: 0.005 # Soft update parameter for target network
-lr: 3e-4 # Learning rate for the optimizer
+# Training episodes
+total_episodes: 300  # INCREASED: Need more episodes with new reward structure
+
+# DQN hyperparameters
+batch_size: 128  # INCREASED: Larger batches for stability
+gamma: 0.95  # REDUCED: Less weight on future (was 0.99)
+
+# Exploration parameters
+eps_start: 0.95  # Start with high exploration
+eps_end: 0.1  # Keep reasonable exploration (was 0.05)
+eps_decay: 20000  # Decay over 20k steps
+
+# Network update parameters
+tau: 0.005  # Not used with hard updates
+target_update_frequency: 500  # Update target network every 500 steps
+learning_starts: 2000  # Start learning after 2000 experiences (INCREASED)
+
+# Optimizer
+lr: 5e-5  # REDUCED: Very low learning rate for stability (was 1e-4)
+
+# Stability
+reward_clip: 5.0  # REDUCED: Tighter reward clipping (was 10.0)
