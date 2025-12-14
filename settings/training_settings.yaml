@@ -2,11 +2,11 @@
 tls_id: "7628244053"
 sumo_config: "sumo_ingolstadt/simulation/24h_bicycle_sim.sumocfg"
 use_gui: false
-delta_time: 5  # Simulation step size
-max_green: 60  # Maximum green duration
-min_green: 10  # Minimum green duration
-yellow_time: 3  # Yellow phase duration
-reward_type: "combined"
+delta_time: 5 # Simulation step size
+max_green: 60 # Maximum green duration
+min_green: 10 # Minimum green duration
+yellow_time: 3 # Yellow phase duration
+reward_type: "queue"
 max_steps: 1000
 end_on_no_vehicles: true
 
@@ -18,11 +18,11 @@ total_episodes: 300
 
 # DQN hyperparameters
 batch_size: 128
-gamma: 0.95  # Discount factor
+gamma: 0.95 # Discount factor
 
 # Exploration parameters
-eps_start: 0.95 
-eps_end: 0.1 
+eps_start: 0.95
+eps_end: 0.1
 eps_decay: 20000
 
 # Network update parameters
