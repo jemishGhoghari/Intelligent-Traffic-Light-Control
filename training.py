@@ -413,30 +413,12 @@ class DQNTraining:
         )
         print(f"Final checkpoint saved: {final_checkpoint}")
 
-    def _save_training_metrics(self):
-        """Save training metrics to JSON file"""
-        metrics = {
-            "episode_returns": self.episode_returns,
-            "episode_durations": self.episode_durations,
-            "episode_waiting_times": self.episode_waiting_times,
-            "episode_switches": self.episode_switches,
-            "training_losses": self.training_losses,
-            "avg_q_values": self.avg_q_values,
-            "max_q_values": self.max_q_values,
-            "total_episodes": self.num_episodes,
-            "total_steps": self.steps_done,
-            "total_updates": self.updates_done,
-            "final_epsilon": self._get_epsilon(),
-            "settings": self.settings,
-        }
+    def plot_all_metrics(self):
+        """Save all training metrics as a single figure (no GUI)."""
 
-        metrics_path = self.output_dir / "training_metrics.json"
-        with open(metrics_path, "w") as f:
-            json.dump(metrics, f, indent=2)
-        print(f"Training metrics saved: {metrics_path}")
+        # Optional but useful if you ever run in an interactive environment
+        plt.ioff()
 
-    def plot_all_metrics(self, show_result=False):
-        """Plot all training metrics in subplots"""
         fig, axes = plt.subplots(2, 3, figsize=(18, 10))
         fig.suptitle("DQN Training Metrics", fontsize=16, fontweight="bold")
 
@@ -565,18 +547,20 @@ class DQNTraining:
                     linewidth=2,
                     color="red",
                 )
+                ax.legend()
             ax.set_title("Recent Step-wise Loss")
             ax.set_xlabel("Update Step")
             ax.set_ylabel("Loss")
-            ax.legend()
             ax.grid(True, alpha=0.3)
 
-        plt.tight_layout()
+        # Layout + save
+        fig.tight_layout()
+        fig.savefig(
+            self.output_dir / "training_metrics.png", dpi=300, bbox_inches="tight"
+        )
 
-        if show_result:
-            plt.savefig(self.output_dir / "training_metrics.png", dpi=300)
-
-        plt.pause(0.001)
+        # Important: free resources (prevents memory leak during long training)
+        plt.close(fig)
 
 
 def main():
