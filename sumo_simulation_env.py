@@ -102,7 +102,7 @@ class SUMOSimulation:
 
         # Get total queue length at the stopline of specific lane
         queue_length = self._get_queue_length_near_stopline(
-            lane_id, distance_from_stop=20
+            lane_id, distance_from_stop=40
         )
 
         # Calculate Vehicle Waiting times and Number of Vehicles.
@@ -358,7 +358,7 @@ class SUMOSimulation:
 
         for lane in lanes:
             total_waiting_time += traci.lane.getWaitingTime(lane)
-            total_queue_length += self._get_queue_length_near_stopline(lane, 20)
+            total_queue_length += self._get_queue_length_near_stopline(lane, 40)
             num_veh = traci.lane.getLastStepVehicleNumber(lane)
             total_vehicles += num_veh
 
@@ -401,6 +401,8 @@ class SUMOSimulation:
             "--no-step-log",
             "--verbose",
             "false",
+            "--scale",
+            "5.0",
         ]
 
         traci.start(sumo_cmd)
@@ -431,6 +433,8 @@ class SUMOSimulation:
                     "--no-step-log",
                     "--verbose",
                     "false",
+                    "--scale",
+                    "5.0",
                 ]
             )
 
