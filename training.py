@@ -272,7 +272,6 @@ class DQNTraining:
 
         # Save final model and results
         self._save_final_model()
-        self._save_training_metrics()
 
         # Plot final results
         self.plot_all_metrics()
