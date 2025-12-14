@@ -57,15 +57,15 @@ class DQNTraining:
         self.tau = self.settings["tau"]
         self.lr = self.settings["lr"]
 
-        # NEW: Learning warmup - don't train until we have enough samples
+        # Learning warmup - don't train until we have enough samples
         self.learning_starts = self.settings.get("learning_starts", 1000)
 
-        # NEW: Update frequency - update target network less often
+        # Update frequency - update target network less often
         self.target_update_frequency = self.settings.get(
             "target_update_frequency", 1000
         )
 
-        # NEW: Reward clipping for stability
+        # Reward clipping for stability
         self.reward_clip = self.settings.get("reward_clip", 10.0)
 
         # Training state
@@ -78,9 +78,13 @@ class DQNTraining:
         self.episode_waiting_times = []
         self.episode_switches = []
         self.training_losses = []
-        self.step_losses = []  # Track every optimization step
+        self.step_losses = []
 
-        # NEW: Track Q-values for monitoring
+        self.episode_avg_queue = []
+        self.episode_avg_vehicles = []
+        self.episode_avg_speed = []
+
+        # Track Q-values for monitoring
         self.avg_q_values = []
         self.max_q_values = []
 
@@ -168,6 +172,10 @@ class DQNTraining:
             episode_losses = []
             episode_q_values = []
 
+            episode_queues = []
+            episode_vehicles = []
+            episode_speeds = []
+
             # Episode loop
             for t in count():
                 # Select and perform action
@@ -177,7 +185,7 @@ class DQNTraining:
 
                 next_state_np, reward_val, done, info = self.env.step(action.item())
 
-                # NEW: Clip rewards for stability
+                # Clip rewards for stability
                 reward_val = np.clip(reward_val, -self.reward_clip, self.reward_clip)
 
                 reward = torch.tensor([reward_val], device=device)
@@ -197,6 +205,10 @@ class DQNTraining:
                 # Move to next state
                 state = next_state
 
+                episode_queues.append(info["current_queue_length"])
+                episode_vehicles.append(info["current_vehicles"])
+                episode_speeds.append(info["avg_speed"])
+
                 # Perform optimization step (only after warmup)
                 if self.steps_done >= self.learning_starts:
                     loss = self.optimize_model()
@@ -204,7 +216,7 @@ class DQNTraining:
                         episode_losses.append(loss)
                         self.step_losses.append(loss)
 
-                    # NEW: Update target network periodically instead of every step
+                    #  Update target network periodically instead of every step
                     if self.updates_done % self.target_update_frequency == 0:
                         self._hard_update_target_network()
                         print(f"    → Target network updated at step {self.steps_done}")
@@ -216,8 +228,10 @@ class DQNTraining:
                     print(
                         f"  Step {t:4d} | Return: {episode_return:8.2f} | "
                         f"Switches: {info['total_phase_switches']:3d} | "
-                        f"Waiting: {info['cumulative_waiting_time']:7.1f}s | "
-                        f"Loss: {avg_loss:.4f} | Avg Q: {avg_q:.2f}"
+                        f"Queue: {info['current_queue_length']:3.0f} | "
+                        f"Vehicles: {info['current_vehicles']:3.0f} | "
+                        f"AvgSpeed: {info['avg_speed']:4.1f}m/s | "
+                        f"Loss: {avg_loss:.4f} | Q: {avg_q:.2f}"
                     )
 
                 if done:
@@ -227,9 +241,14 @@ class DQNTraining:
                     self.episode_waiting_times.append(info["cumulative_waiting_time"])
                     self.episode_switches.append(info["total_phase_switches"])
 
+                    if episode_queues:
+                        self.episode_avg_queue.append(np.mean(episode_queues))
+                    if episode_vehicles:
+                        self.episode_avg_vehicles.append(np.mean(episode_vehicles))
+                    if episode_speeds:
+                        self.episode_avg_speed.append(np.mean(episode_speeds))
                     if episode_losses:
                         self.training_losses.append(np.mean(episode_losses))
-
                     if episode_q_values:
                         self.avg_q_values.append(np.mean(episode_q_values))
                         self.max_q_values.append(np.max(episode_q_values))
@@ -272,6 +291,8 @@ class DQNTraining:
 
         # Save final model and results
         self._save_final_model()
+        # Save training metrics
+        self._save_training_metrics()
 
         # Plot final results
         self.plot_all_metrics()
@@ -357,7 +378,7 @@ class DQNTraining:
         self.optimizer.zero_grad()
         loss.backward()
 
-        # NEW: Gradient clipping with norm instead of value
+        #  Gradient clipping with norm instead of value
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=10.0)
 
         self.optimizer.step()
@@ -412,13 +433,37 @@ class DQNTraining:
         )
         print(f"Final checkpoint saved: {final_checkpoint}")
 
+    def _save_training_metrics(self):
+        """Save training metrics to JSON file"""
+        metrics = {
+            "episode_returns": self.episode_returns,
+            "episode_durations": self.episode_durations,
+            "episode_waiting_times": self.episode_waiting_times,
+            "episode_switches": self.episode_switches,
+            "episode_avg_queue": self.episode_avg_queue,
+            "episode_avg_vehicles": self.episode_avg_vehicles,
+            "episode_avg_speed": self.episode_avg_speed,
+            "training_losses": self.training_losses,
+            "avg_q_values": self.avg_q_values,
+            "max_q_values": self.max_q_values,
+            "total_episodes": self.num_episodes,
+            "total_steps": self.steps_done,
+            "total_updates": self.updates_done,
+            "final_epsilon": self._get_epsilon(),
+            "settings": self.settings,
+        }
+
+        metrics_path = self.output_dir / "training_metrics.json"
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+        print(f"Training metrics saved: {metrics_path}")
+
     def plot_all_metrics(self):
         """Save all training metrics as a single figure (no GUI)."""
 
-        # Optional but useful if you ever run in an interactive environment
         plt.ioff()
 
-        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+        fig, axes = plt.subplots(3, 3, figsize=(20, 14))
         fig.suptitle("DQN Training Metrics", fontsize=16, fontweight="bold")
 
         # 1. Episode Returns
@@ -486,13 +531,13 @@ class DQNTraining:
             ax.legend()
             ax.grid(True, alpha=0.3)
 
-        # 4. Waiting Times
+        # 4. Cumulative Waiting Times (across episodes)
         ax = axes[1, 0]
         if self.episode_waiting_times:
             ax.plot(
                 self.episode_waiting_times,
                 alpha=0.5,
-                label="Waiting Time",
+                label="Cumulative Waiting",
                 color="purple",
             )
             if len(self.episode_waiting_times) >= 10:
@@ -508,7 +553,7 @@ class DQNTraining:
                     linewidth=2,
                     color="darkviolet",
                 )
-            ax.set_title("Cumulative Waiting Time")
+            ax.set_title("Cumulative Waiting Time per Episode")
             ax.set_xlabel("Episode")
             ax.set_ylabel("Time (s)")
             ax.legend()
@@ -546,19 +591,96 @@ class DQNTraining:
                     linewidth=2,
                     color="red",
                 )
-                ax.legend()
             ax.set_title("Recent Step-wise Loss")
             ax.set_xlabel("Update Step")
             ax.set_ylabel("Loss")
+            ax.legend()
             ax.grid(True, alpha=0.3)
 
-        # Layout + save
-        fig.tight_layout()
+        # 7. Average Queue Length per Episode
+        ax = axes[2, 0]
+        if self.episode_avg_queue:
+            ax.plot(self.episode_avg_queue, alpha=0.7, label="Avg Queue", color="red")
+            if len(self.episode_avg_queue) >= 10:
+                window = min(50, len(self.episode_avg_queue))
+                queue_array = np.array(self.episode_avg_queue)
+                moving_avg = np.convolve(
+                    queue_array, np.ones(window) / window, mode="valid"
+                )
+                ax.plot(
+                    range(window - 1, len(self.episode_avg_queue)),
+                    moving_avg,
+                    label=f"{window}-Ep Avg",
+                    linewidth=2,
+                    color="darkred",
+                )
+            ax.set_title("Average Queue Length per Episode")
+            ax.set_xlabel("Episode")
+            ax.set_ylabel("Vehicles")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+        # 8. Average Vehicles per Episode
+        ax = axes[2, 1]
+        if self.episode_avg_vehicles:
+            ax.plot(
+                self.episode_avg_vehicles,
+                alpha=0.7,
+                label="Avg Vehicles",
+                color="brown",
+            )
+            if len(self.episode_avg_vehicles) >= 10:
+                window = min(50, len(self.episode_avg_vehicles))
+                veh_array = np.array(self.episode_avg_vehicles)
+                moving_avg = np.convolve(
+                    veh_array, np.ones(window) / window, mode="valid"
+                )
+                ax.plot(
+                    range(window - 1, len(self.episode_avg_vehicles)),
+                    moving_avg,
+                    label=f"{window}-Ep Avg",
+                    linewidth=2,
+                    color="saddlebrown",
+                )
+            ax.set_title("Average Vehicles per Episode")
+            ax.set_xlabel("Episode")
+            ax.set_ylabel("Vehicles")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+        # 9. Average Speed per Episode
+        ax = axes[2, 2]
+        if self.episode_avg_speed:
+            ax.plot(
+                self.episode_avg_speed,
+                alpha=0.7,
+                label="Avg Speed",
+                color="forestgreen",
+            )
+            if len(self.episode_avg_speed) >= 10:
+                window = min(50, len(self.episode_avg_speed))
+                speed_array = np.array(self.episode_avg_speed)
+                moving_avg = np.convolve(
+                    speed_array, np.ones(window) / window, mode="valid"
+                )
+                ax.plot(
+                    range(window - 1, len(self.episode_avg_speed)),
+                    moving_avg,
+                    label=f"{window}-Ep Avg",
+                    linewidth=2,
+                    color="darkgreen",
+                )
+            ax.set_title("Average Speed per Episode")
+            ax.set_xlabel("Episode")
+            ax.set_ylabel("Speed (m/s)")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
         fig.savefig(
             self.output_dir / "training_metrics.png", dpi=300, bbox_inches="tight"
         )
 
-        # Important: free resources (prevents memory leak during long training)
         plt.close(fig)
 
 
