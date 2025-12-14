@@ -253,7 +253,7 @@ class DQNTraining:
                     # Plot progress every 10 episodes
                     if (i_episode + 1) % 10 == 0:
                         self._save_checkpoint(i_episode + 1)
-                        self.plot_all_metrics(show_result=False)
+                        self.plot_all_metrics()
 
                     break
 
@@ -275,7 +275,7 @@ class DQNTraining:
         self._save_training_metrics()
 
         # Plot final results
-        self.plot_all_metrics(show_result=True)
+        self.plot_all_metrics()
 
         plt.ioff()
         plt.show()
