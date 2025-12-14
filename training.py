@@ -115,7 +115,12 @@ class DQNTraining:
                     ).unsqueeze(0)
 
                 if self.steps_done % 100 == 0:
-                    print(f"Steps finished {self.steps_done}")
+                    print(
+                        f"Steps finished {self.steps_done} | "
+                        f"Steps: {t + 1} | Return: {episode_return:.2f} | "
+                        f"Switches: {info['total_phase_switches']} | "
+                        f"Cumulative waiting: {info['cumulative_waiting_time']:.2f}"
+                    )
 
                 self.memory.push(state, action, next_state, reward)
 
