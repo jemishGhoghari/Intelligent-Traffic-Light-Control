@@ -1,5 +1,5 @@
 from sumo_simulation_env import SUMOSimulation
-from model import DQN, ReplayMemory, Transition
+from dqn_model import DQN, ReplayMemory, Transition
 import random
 import yaml
 from pathlib import Path
