@@ -291,8 +291,6 @@ class DQNTraining:
 
         # Save final model and results
         self._save_final_model()
-        # Save training metrics
-        self._save_training_metrics()
 
         # Plot final results
         self.plot_all_metrics()
@@ -432,31 +430,6 @@ class DQNTraining:
             final_checkpoint,
         )
         print(f"Final checkpoint saved: {final_checkpoint}")
-
-    def _save_training_metrics(self):
-        """Save training metrics to JSON file"""
-        metrics = {
-            "episode_returns": self.episode_returns,
-            "episode_durations": self.episode_durations,
-            "episode_waiting_times": self.episode_waiting_times,
-            "episode_switches": self.episode_switches,
-            "episode_avg_queue": self.episode_avg_queue,
-            "episode_avg_vehicles": self.episode_avg_vehicles,
-            "episode_avg_speed": self.episode_avg_speed,
-            "training_losses": self.training_losses,
-            "avg_q_values": self.avg_q_values,
-            "max_q_values": self.max_q_values,
-            "total_episodes": self.num_episodes,
-            "total_steps": self.steps_done,
-            "total_updates": self.updates_done,
-            "final_epsilon": self._get_epsilon(),
-            "settings": self.settings,
-        }
-
-        metrics_path = self.output_dir / "training_metrics.json"
-        with open(metrics_path, "w") as f:
-            json.dump(metrics, f, indent=2)
-        print(f"Training metrics saved: {metrics_path}")
 
     def plot_all_metrics(self):
         """Save all training metrics as a single figure (no GUI)."""
