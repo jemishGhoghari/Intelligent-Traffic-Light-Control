@@ -1,8 +1,3 @@
-"""
-Simple script to test trained model with live visualization.
-Run this to see your model control traffic in real-time with SUMO GUI.
-"""
-
 from sumo_simulation_env import SUMOSimulation
 from dqn_model import DQN
 import torch
@@ -23,7 +18,6 @@ class LiveTrafficVisualizer:
     def __init__(self, max_steps=1000):
         self.max_steps = max_steps
 
-        # Data storage
         self.steps = []
         self.queue_lengths = []
         self.num_vehicles = []
@@ -31,16 +25,13 @@ class LiveTrafficVisualizer:
         self.rewards = []
         self.actions = []
 
-        # Create figure
         self.fig, self.axes = plt.subplots(2, 2, figsize=(14, 10))
         self.fig.suptitle(
             "DQN Traffic Light Control - Live Metrics", fontsize=14, fontweight="bold"
         )
 
-        # Initialize plots
         self.lines = {}
 
-        # Queue Length
         ax = self.axes[0, 0]
         (self.lines["queue"],) = ax.plot(
             [], [], "r-", linewidth=2, label="Queue Length"
@@ -53,7 +44,6 @@ class LiveTrafficVisualizer:
         ax.grid(True, alpha=0.3)
         ax.legend()
 
-        # Number of Vehicles
         ax = self.axes[0, 1]
         (self.lines["vehicles"],) = ax.plot([], [], "b-", linewidth=2, label="Vehicles")
         ax.set_xlim(0, max_steps)
@@ -64,7 +54,6 @@ class LiveTrafficVisualizer:
         ax.grid(True, alpha=0.3)
         ax.legend()
 
-        # Average Speed
         ax = self.axes[1, 0]
         (self.lines["speed"],) = ax.plot([], [], "g-", linewidth=2, label="Avg Speed")
         ax.set_xlim(0, max_steps)
@@ -75,7 +64,6 @@ class LiveTrafficVisualizer:
         ax.grid(True, alpha=0.3)
         ax.legend()
 
-        # Cumulative Reward
         ax = self.axes[1, 1]
         (self.lines["reward"],) = ax.plot(
             [], [], "purple", linewidth=2, label="Cumulative Reward"
@@ -89,7 +77,7 @@ class LiveTrafficVisualizer:
         ax.legend()
 
         plt.tight_layout()
-        plt.ion()  # Interactive mode
+        plt.ion()
         plt.show()
 
     def update(self, step, queue, vehicles, speed, reward, action):
@@ -99,7 +87,6 @@ class LiveTrafficVisualizer:
         self.num_vehicles.append(vehicles)
         self.avg_speeds.append(speed)
 
-        # Calculate cumulative reward
         if len(self.rewards) == 0:
             self.rewards.append(reward)
         else:
@@ -107,13 +94,11 @@ class LiveTrafficVisualizer:
 
         self.actions.append(action)
 
-        # Update line data
         self.lines["queue"].set_data(self.steps, self.queue_lengths)
         self.lines["vehicles"].set_data(self.steps, self.num_vehicles)
         self.lines["speed"].set_data(self.steps, self.avg_speeds)
         self.lines["reward"].set_data(self.steps, self.rewards)
 
-        # Auto-scale y-axis if needed
         if len(self.queue_lengths) > 0:
             max_queue = max(self.queue_lengths)
             if max_queue > self.axes[0, 0].get_ylim()[1] * 0.9:
@@ -130,7 +115,6 @@ class LiveTrafficVisualizer:
             if min_rew < self.axes[1, 1].get_ylim()[0]:
                 self.axes[1, 1].set_ylim(min_rew * 1.2, max_rew * 1.2)
 
-        # Redraw
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
         plt.pause(0.001)
@@ -156,15 +140,12 @@ def test_model(
     print("\n" + "=" * 70)
     print("TESTING TRAINED DQN MODEL")
 
-    # Load settings
     with open(settings_file, "r") as f:
         settings = yaml.safe_load(f)
 
-    # Override max_steps if provided
     if max_steps is not None:
         settings["max_steps"] = max_steps
 
-    # Initialize environment
     print("Initializing environment...")
     env = SUMOSimulation(
         tls_id=settings["tls_id"],
@@ -179,7 +160,6 @@ def test_model(
         end_on_no_vehicles=settings["end_on_no_vehicles"],
     )
 
-    # Get dimensions
     state = env.reset()
     n_observations = len(state)
     n_actions = env.action_space_n
@@ -187,18 +167,15 @@ def test_model(
     print(f"Observation space: {n_observations}")
     print(f"Action space: {n_actions}")
 
-    # Load model
     print(f"\nLoading model from {model_path}...")
     policy_net = DQN(n_observations, n_actions).to(device)
     policy_net.load_state_dict(torch.load(model_path, map_location=device))
     policy_net.eval()
     print("Model loaded successfully!")
 
-    # Initialize visualizer
     if visualize:
         viz = LiveTrafficVisualizer(max_steps=settings["max_steps"])
 
-    # Run episode
     print("\n" + "=" * 70)
     print("STARTING SIMULATION")
     print("=" * 70 + "\n")
@@ -208,11 +185,9 @@ def test_model(
     step = 0
     episode_return = 0.0
 
-    # Statistics
     action_counts = {0: 0, 1: 0}
 
     while not done:
-        # Select action using trained policy (greedy)
         with torch.no_grad():
             state_tensor = torch.tensor(
                 state, dtype=torch.float32, device=device
@@ -221,15 +196,12 @@ def test_model(
             action = q_values.max(1).indices.item()
             max_q = q_values.max(1).values.item()
 
-        # Take action
         next_state, reward, done, info = env.step(action)
         episode_return += reward
         step += 1
 
-        # Count actions
         action_counts[action] += 1
 
-        # Update visualization
         if visualize:
             viz.update(
                 step=step,
@@ -240,7 +212,6 @@ def test_model(
                 action=action,
             )
 
-        # Print progress
         action_str = "CONTINUE" if action == 0 else "SWITCH"
         print(
             f"Step {step:4d} | Action: {action_str:8s} | Q: {max_q:7.2f} | "
@@ -253,7 +224,6 @@ def test_model(
 
         state = next_state
 
-    # Episode summary
     print("\n" + "=" * 70)
     print("SIMULATION COMPLETED")
     print("=" * 70)
@@ -266,13 +236,11 @@ def test_model(
     print(f"  Switch (1): {action_counts[1]} ({action_counts[1]/step*100:.1f}%)")
     print("=" * 70 + "\n")
 
-    # Keep visualization open
     if visualize:
         print("Close the visualization window to exit...")
         plt.ioff()
         plt.show()
 
-    # Close environment
     env.close()
 
 

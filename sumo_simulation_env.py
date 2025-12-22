@@ -31,7 +31,7 @@ class SUMOSimulation:
         delta_time: int = 5,
         max_green: int = 60,
         min_green: int = 5,
-        yellow_time: int = 3,  # NEW: Yellow phase duration
+        yellow_time: int = 3,
         reward_type: str = "combined",
         max_steps: int = 3600,
         end_on_no_vehicles: bool = True,
@@ -51,7 +51,6 @@ class SUMOSimulation:
         self.time_since_last_phase_change = 0
         self.current_phase_duration = 0
 
-        # NEW: Track if we're in a yellow phase
         self.in_yellow_phase = False
         self.yellow_phase_remaining = 0
         self.pending_green_phase = None
@@ -60,20 +59,17 @@ class SUMOSimulation:
         self.cumulative_waiting_time = 0
         self.cumulative_reward = 0
 
-        # NEW: Track previous metrics for differential rewards
         self.previous_waiting_time = 0
         self.previous_queue_length = 0
 
         self.sumo_running = False
         self._start_sumo()
 
-        # Action space
         self.action_space_n = 2
         self.observation_space_n = None
 
         self.num_phases = self._get_num_phases(self.tls_id)
 
-        # NEW: Get green phases only (exclude yellow/red)
         self.green_phases = self._get_green_phases()
         print(
             f"Traffic light has {self.num_phases} total phases, {len(self.green_phases)} green phases"
@@ -224,11 +220,9 @@ class SUMOSimulation:
             self._switch_to_next_phase()
             return
 
-        # If action is to switch AND we've met min_green requirement
+        # If action is to switch AND we have met min_green requirement
         if action == 1 and self.time_since_last_phase_change >= self.min_green:
             self._switch_to_next_phase()
-
-        # Otherwise, continue current phase (action 0 or min_green not met)
 
     def _switch_to_next_phase(self):
         """

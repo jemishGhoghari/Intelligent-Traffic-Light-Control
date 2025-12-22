@@ -411,11 +411,9 @@ class DQNDeployment:
         adaptive_data = np.array(adaptive_results[metric])
         static_data = np.array(static_results[metric])
 
-        # Plot raw data with transparency
         plt.plot(adaptive_time, adaptive_data, alpha=0.3, color="blue", linewidth=0.5)
         plt.plot(static_time, static_data, alpha=0.3, color="red", linewidth=0.5)
 
-        # Plot moving averages for clarity
         window = 50
         if len(adaptive_data) >= window:
             adaptive_smooth = np.convolve(
@@ -468,7 +466,7 @@ class DQNDeployment:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
         plt.close()
 
-        print(f"  ✓ Saved: {filename}")
+        print(f"Saved: {filename}")
 
     def _plot_summary_comparison(self, adaptive_results, static_results):
         """Create bar chart comparing summary statistics"""
@@ -501,7 +499,6 @@ class DQNDeployment:
                 linewidth=1.5,
             )
 
-            # Add value labels on bars
             for bar in bars:
                 height = bar.get_height()
                 ax.text(
@@ -527,7 +524,7 @@ class DQNDeployment:
                 improvement = ((adaptive_val - static_val) / static_val) * 100
                 color = "green" if improvement > 0 else "red"
 
-            if metric_key != "avg_switches":  # Don't show improvement for switches
+            if metric_key != "avg_switches":
                 ax.set_title(
                     f"{improvement:+.1f}% improvement",
                     color=color,
