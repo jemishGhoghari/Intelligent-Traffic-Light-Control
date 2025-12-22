@@ -11,6 +11,7 @@ This project addresses the limitations of fixed-timing traffic signals by implem
 ### Goal
 
 The primary goal is to develop a **Deep Q-Network (DQN) agent** that can:
+
 - Learn optimal traffic light phase switching strategies through interaction with realistic traffic simulations
 - Reduce average vehicle waiting times and queue lengths at intersections
 - Improve overall traffic flow and vehicle throughput
@@ -37,16 +38,19 @@ Open a fresh terminal and execute the following commands to setup SUMO simulatio
 ### Step 1: Install SUMO Simulator
 
 **Ubuntu/Linux:**
+
 ```bash
 sudo apt-get install sumo sumo-tools sumo-doc
 ```
 
 **macOS:**
+
 ```bash
 brew install sumo
 ```
 
 **Windows:**
+
 - Download from [SUMO official website](https://www.eclipse.org/sumo/)
 - Install and add SUMO to your system PATH
 
@@ -74,11 +78,13 @@ python3 -m venv venv
 ### Step 5: Activate Virtual Environment
 
 **Linux/macOS:**
+
 ```bash
 source venv/bin/activate
 ```
 
 **Windows:**
+
 ```bash
 venv\Scripts\activate
 ```
@@ -102,6 +108,7 @@ python train_agent.py
 ```
 
 **What happens:**
+
 - The agent learns to control traffic lights through trial and error
 - Training runs for 200 episodes (configurable in `settings/training_settings.yaml`)
 - Progress is logged every 50 steps
@@ -112,6 +119,7 @@ python train_agent.py
 
 **Training Configuration:**
 Edit `settings/training_settings.yaml` to adjust:
+
 - `total_episodes`: Number of training episodes (default: 200)
 - `use_gui`: Set to `true` to visualize training (slower)
 - `reward_type`: Choose between `"queue"`, `"waiting_time"`, or `"combined"`
@@ -125,11 +133,13 @@ python test_agent.py --model training_outputs/dqn_sumo_policy_final.pt
 ```
 
 **What you'll see:**
+
 - SUMO GUI showing live traffic simulation
 - Real-time plots of queue length, vehicle count, speed, and rewards
 - Console output showing the agent's decisions and performance metrics
 
 **Options:**
+
 ```bash
 # Test without SUMO GUI
 python test_agent.py --model training_outputs/dqn_sumo_policy_final.pt --no-gui
@@ -150,29 +160,19 @@ python agent_evaluation.py
 ```
 
 **What this does:**
+
 - Runs your trained DQN model for 5 episodes
 - Runs traditional fixed-timing control (30s green phases) for 5 episodes
 - Generates comparison plots in `testing_outputs/`
 - Calculates percentage improvements in key metrics
 
 **Results saved:**
+
 - `evaluation_results.json`: Numerical comparison
 - `queue_length_comparison.png`: Queue length over time
 - `waiting_time_comparison.png`: Waiting time comparison
 - `speed_comparison.png`: Average speed comparison
 - `summary_comparison.png`: Overall performance metrics
-
----
-
-## 📊 Expected Results
-
-After training, you should see improvements like:
-
-| Metric | Fixed Timing | DQN Agent | Improvement |
-|--------|-------------|-----------|-------------|
-| Average Queue Length | ~25 vehicles | ~18 vehicles | **-26%** ✅ |
-| Average Waiting Time | ~43 seconds | ~32 seconds | **-26%** ✅ |
-| Average Speed | ~8.2 m/s | ~9.8 m/s | **+20%** ✅ |
 
 ---
 
@@ -225,6 +225,7 @@ eps_end: 0.1                       # Final exploration rate
 ## 🔧 Troubleshooting
 
 **SUMO not found:**
+
 ```bash
 # Verify SUMO installation
 sumo --version
@@ -234,10 +235,12 @@ export SUMO_HOME="/usr/share/sumo"  # Adjust path as needed
 ```
 
 **Out of memory during training:**
+
 - Reduce `batch_size` to 64 in `training_settings.yaml`
 - Reduce `capacity` to 50000
 
 **Slow training:**
+
 - Set `use_gui: false` in settings
 - Reduce `max_steps` to 500 for shorter episodes
 
@@ -248,6 +251,7 @@ export SUMO_HOME="/usr/share/sumo"  # Adjust path as needed
 ### Deep Q-Network (DQN)
 
 The agent uses a neural network to estimate Q-values (expected future rewards) for each action:
+
 - **State**: Lane features (queue length, waiting time, vehicle count, speed) + current phase info
 - **Actions**: Continue current phase OR switch to next phase
 - **Reward**: Reduction in queue length and waiting time
@@ -265,8 +269,8 @@ The agent uses a neural network to estimate Q-values (expected future rewards) f
 ## 🎓 References
 
 - **SUMO**: [Eclipse SUMO Documentation](https://sumo.dlr.de/docs/)
-- **Ingolstadt Network**: [TUM-VT/sumo_ingolstadt](https://github.com/TUM-VT/sumo_ingolstadt)
-- **DQN Paper**: Mnih et al., "Playing Atari with Deep Reinforcement Learning" (2013)
+- **Ingolstadt Network**: [TUM-VT/sumo_ingolstadt
+  ](https://github.com/TUM-VT/sumo_ingolstadt)
 
 ---
 
